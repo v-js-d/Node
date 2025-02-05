@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Файловый менеджер</title>
+</head>
+<body>
+  <h1>Файловый менеджер</h1>
+
+  <div id="content"></div>
+
+  <!-- Форма для создания нового файла или директории -->
+  <form id="createForm">
+    <input type="text" id="createInput" placeholder="Введите имя нового файла или директории" required>
+    <select id="createType">
+      <option value="file">Файл</option>
+      <option value="directory">Директория</option>
+    </select>
+    <button type="submit">Создать</button>
+  </form>
+
+  <script>
+    const contentDiv = document.getElementById('content');
+
+     /**
+     * Получаем содержимое директории или файла с сервера.
+     * @param {string} path - Путь к файлу или директории.
+     */
+
+    async function fetchDirectory(path = '/') {
+      const response = await fetch(`/api${path}`);
+      const data = await response.json();
+
+      if (data.type === 'directory') {
+        renderDirectory(data.path, data.items);
+      } else if (data.type === 'file') {
+        renderFile(data.path, data.content);
+      }
+    }
+
+      /**
+     * Отображаем содержимое директории.
+     * @param {string} currentPath - Текущий путь.
+     * @param {Array} items - Список файлов и папок в директории.
+     */
+
+    function renderDirectory(currentPath, items) {
+      contentDiv.innerHTML = `<h2>Содержимое директории: ${currentPath}</h2><ul>`;
+
+      // Добавляем ссылку для перехода на уровень выше, если не корневая директория
+      if (currentPath !== '/') {
+        const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
+        contentDiv.innerHTML += `<li><a href="#" onclick="fetchDirectory('${parentPath}')">.. (на уровень выше)</a></li>`;
+      }
+
+      // Перебираем элементы в директории и добавляем их в список
+      items.forEach(item => {
+        contentDiv.innerHTML += `<li>
+          <a href="#" onclick="fetchDirectory('${item.path.replace(/\\/g, '/')}')">
+            ${item.name}${item.isDirectory ? ' (каталог)' : ''}
+          </a> 
+          <button onclick="deleteItem('${item.path.replace(/\\/g, '/')}')">Удалить</button>
+        </li>`;
+      });
+
+      contentDiv.innerHTML += `</ul>`;
+    }
+
+     /**
+     * Отображаем содержимое файла.
+     * @param {string} filePath - Путь к файлу.
+     * @param {string} content - Содержимое файла.
+     */
+
+    function renderFile(filePath, content) {
+      contentDiv.innerHTML = `<h2>Содержимое файла: ${filePath}</h2>`;
+      contentDiv.innerHTML += `<pre>${content}</pre>`;
+    }
+
+    /**
+     * Отправляем DELETE-запрос для удаления файла или директории.
+     * @param {string} path - Путь к удаляемому элементу.
+     */
+
+    async function deleteItem(path) {
+      await fetch(`/api${path}`, { method: 'DELETE' });
+      fetchDirectory(path.split('/').slice(0, -1).join('/'));
+    }
+
+    /**
+     * Обрабатывает отправку формы для создания нового файла или директории.
+     */
+
+    document.getElementById('createForm').onsubmit = async (event) => {
+      event.preventDefault();
+      const name = document.getElementById('createInput').value;
+      const type = document.getElementById('createType').value;
+      await fetch(`/api${window.location.pathname}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ name, type })
+      });
+      fetchDirectory(window.location.pathname);
+    };
+
+    // Начальная загрузка
+    fetchDirectory();
+  </script>
+</body>
+</html>
